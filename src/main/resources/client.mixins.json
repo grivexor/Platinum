@@ -1,0 +1,41 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "xyz.dqrkis.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ChatHudMixin",
+    "ClientConnectionMixin",
+    "EndCrystalItemMixin",
+    "ItemStackMixin",
+    "LivingEntityAccessor",
+    "WorldAccessor"
+  ],
+  "client": [
+    "CameraMixin",
+    "ClientPlayerEntityMixin",
+    "ClientPlayerInteractionManagerAccessor",
+    "ClientPlayerInteractionManagerMixin",
+    "ConnectScreenMixin",
+    "DisconnectedScreenMixin",
+    "EntityMixin",
+    "GameRendererMixin",
+    "HandledScreenMixin",
+    "InGameHudMixin",
+    "KeyBindingAccessor",
+    "KeyBindingMixin",
+    "KeyboardMixin",
+    "LivingEntityRendererMixin",
+    "MinecraftClientAccessor",
+    "MinecraftClientMixin",
+    "MouseMixin",
+    "OtherClientPlayerEntityAccessor",
+    "PlayerInventoryAccessor",
+    "PlayerListEntryMixin",
+    "ScreenMixin",
+    "TextVisitFactoryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
