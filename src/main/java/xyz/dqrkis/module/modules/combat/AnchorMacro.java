@@ -8,14 +8,16 @@ import xyz.dqrkis.module.setting.BooleanSetting;
 import xyz.dqrkis.module.setting.KeybindSetting;
 import xyz.dqrkis.module.setting.NumberSetting;
 import xyz.dqrkis.utils.*;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.RespawnAnchorBlock;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.Items;
 import net.minecraft.item.ShieldItem;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashSet;
@@ -75,160 +77,125 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 		super.onDisable();
 	}
 
+	private static boolean roll(int chance) {
+		return chance >= 100 || (chance > 0 && MathUtils.randomInt(1, 100) <= chance);
+	}
+
+	private static boolean isUsing(net.minecraft.item.ItemStack stack) {
+		return stack.getItem() instanceof ShieldItem || stack.contains(DataComponentTypes.FOOD);
+	}
+
 	@Override
 	public void onTick() {
-		if (mc.currentScreen != null)
+		if (mc.currentScreen != null || mc.player == null || mc.world == null)
 			return;
-
-		if (((mc.player.getMainHandStack().getItem().getComponents().contains(DataComponentTypes.FOOD) || mc.player.getMainHandStack().getItem() instanceof ShieldItem || mc.player.getOffHandStack().getItem() instanceof ShieldItem || mc.player.getOffHandStack().getItem().getComponents().contains(DataComponentTypes.FOOD)) && GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS) && whileUse.getValue())
-			return;
-
-		if(stopOnKill.getValue() && WorldUtils.isDeadBodyNearby())
-			return;
-
-		int randomInt = MathUtils.randomInt(1, 100);
 
 		if (actionCooldown > 0)
 			actionCooldown--;
 
-		boolean armed = KeyUtils.isKeyPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT) || useLatch > 0;
+		boolean rightHeld = KeyUtils.isKeyPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+		boolean armed = rightHeld || useLatch > 0;
 		if (useLatch > 0)
 			useLatch--;
 
-		if (armed && actionCooldown == 0) {
-			if (mc.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
-				if (BlockUtils.isBlock(hit.getBlockPos(), Blocks.RESPAWN_ANCHOR)) {
-					if (onlyOwn.getValue() && !ownedAnchors.contains(hit.getBlockPos()))
-						return;
+		// cheapest checks first: bail out before doing any world lookups
+		if (!armed || actionCooldown > 0)
+			return;
+		if (!(mc.crosshairTarget instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK)
+			return;
 
-					mc.options.useKey.setPressed(false);
+		BlockPos pos = hit.getBlockPos();
+		BlockState state = mc.world.getBlockState(pos);
+		if (!state.isOf(Blocks.RESPAWN_ANCHOR))
+			return;
 
-					if (BlockUtils.isAnchorNotCharged(hit.getBlockPos())) {
-						randomInt = MathUtils.randomInt(1, 100);
+		if (whileUse.getValue() && rightHeld && (isUsing(mc.player.getMainHandStack()) || isUsing(mc.player.getOffHandStack())))
+			return;
+		if (onlyOwn.getValue() && !ownedAnchors.contains(pos))
+			return;
+		if (stopOnKill.getValue() && WorldUtils.isDeadBodyNearby())
+			return;
 
-						if (randomInt <= placeChance.getValueInt()) {
-							if (!mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
-								if (switchClock != switchDelay.getValueInt()) {
-									switchClock++;
-									return;
-								}
+		mc.options.useKey.setPressed(false);
 
-								randomInt = MathUtils.randomInt(1, 100);
+		int charges = state.get(RespawnAnchorBlock.CHARGES);
+		PlayerInventory inv = mc.player.getInventory();
 
-								if(randomInt <= switchChance.getValueInt()) {
-									switchClock = 0;
-									SwitchUtils.selectHotbar(Items.GLOWSTONE);
-								}
-							}
+		if (charges == 0) {
+			if (!roll(placeChance.getValueInt()))
+				return;
 
-							if (mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
-								if (glowstoneClock != glowstoneDelay.getValueInt()) {
-									glowstoneClock++;
-									return;
-								}
-
-								randomInt = MathUtils.randomInt(1, 100);
-
-								if(randomInt <= glowstoneChance.getValueInt()) {
-									glowstoneClock = 0;
-
-									if (clickSimulation.getValue())
-										MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
-
-									WorldUtils.placeBlock(hit, true);
-									actionCooldown = 3;
-								}
-							}
-						}
-					}
-
-					if (BlockUtils.isAnchorCharged(hit.getBlockPos())) {
-						int slot = explodeSlot.getValueInt() - 1;
-
-						if (mc.player.getInventory().getSelectedSlot() != slot) {
-							if (switchClock != switchDelay.getValueInt()) {
-								switchClock++;
-								return;
-							}
-
-							randomInt = MathUtils.randomInt(1, 100);
-
-							if(randomInt <= switchChance.getValueInt()) {
-								switchClock = 0;
-								InventoryUtils.setInvSlot(slot);
-							}
-						}
-
-						if (mc.player.getInventory().getSelectedSlot() == slot) {
-							if (explodeClock != explodeDelay.getValueInt()) {
-								explodeClock++;
-								return;
-							}
-
-							randomInt = MathUtils.randomInt(1, 100);
-
-							if(randomInt <= explodeChance.getValueInt()) {
-								explodeClock = 0;
-
-								if (!onlyCharge.getValue()) {
-									if (clickSimulation.getValue())
-										MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
-
-									WorldUtils.placeBlock(hit, true);
-									actionCooldown = 3;
-
-									ownedAnchors.remove(hit.getBlockPos());
-								}
-							}
-						}
-					}
+			if (!mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
+				if (switchClock < switchDelay.getValueInt()) {
+					switchClock++;
+					return;
 				}
+				if (!roll(switchChance.getValueInt()) || !SwitchUtils.selectHotbar(Items.GLOWSTONE))
+					return;
+				switchClock = 0;
 			}
+
+			if (glowstoneClock < glowstoneDelay.getValueInt()) {
+				glowstoneClock++;
+				return;
+			}
+			if (!roll(glowstoneChance.getValueInt()))
+				return;
+
+			glowstoneClock = 0;
+			click(hit);
+		} else {
+			int slot = explodeSlot.getValueInt() - 1;
+
+			if (inv.getSelectedSlot() != slot) {
+				if (switchClock < switchDelay.getValueInt()) {
+					switchClock++;
+					return;
+				}
+				if (!roll(switchChance.getValueInt()))
+					return;
+				switchClock = 0;
+				InventoryUtils.setInvSlot(slot);
+			}
+
+			if (explodeClock < explodeDelay.getValueInt()) {
+				explodeClock++;
+				return;
+			}
+			if (!roll(explodeChance.getValueInt()) || onlyCharge.getValue())
+				return;
+
+			explodeClock = 0;
+			click(hit);
+			ownedAnchors.remove(pos);
 		}
+	}
+
+	private void click(BlockHitResult hit) {
+		if (clickSimulation.getValue())
+			MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+		WorldUtils.placeBlock(hit, true);
+		actionCooldown = 3;
 	}
 
 	@Override
 	public void onItemUse(ItemUseEvent event) {
 		useLatch = 6;
-		if (mc.crosshairTarget instanceof BlockHitResult hitResult && hitResult.getType() == HitResult.Type.BLOCK) {
-			if (mc.player.getMainHandStack().getItem() == Items.RESPAWN_ANCHOR) {
-				Direction dir = hitResult.getSide();
-				BlockPos pos = hitResult.getBlockPos();
+		if (mc.player == null || mc.world == null)
+			return;
+		if (!(mc.crosshairTarget instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK)
+			return;
 
-				if (!mc.world.getBlockState(pos).isReplaceable()) {
-					switch (dir) {
-						case UP: {
-							ownedAnchors.add(pos.add(0, 1, 0));
-							break;
-						}
-						case DOWN: {
-							ownedAnchors.add(pos.add(0, -1, 0));
-							break;
-						}
-						case EAST: {
-							ownedAnchors.add(pos.add(1, 0, 0));
-							break;
-						}
-						case WEST: {
-							ownedAnchors.add(pos.add(-1, 0, 0));
-							break;
-						}
-						case NORTH: {
-							ownedAnchors.add(pos.add(0, 0, -1));
-							break;
-						}
-						case SOUTH: {
-							ownedAnchors.add(pos.add(0, 0, 1));
-							break;
-						}
-					}
-				} else ownedAnchors.add(pos);
-			}
+		BlockPos pos = hit.getBlockPos();
 
-			BlockPos bp = hitResult.getBlockPos();
-
-			if(BlockUtils.isAnchorCharged(bp))
-				ownedAnchors.remove(bp);
+		if (mc.player.getMainHandStack().isOf(Items.RESPAWN_ANCHOR)) {
+			ownedAnchors.add(mc.world.getBlockState(pos).isReplaceable() ? pos : pos.offset(hit.getSide()));
+			// keep the set from growing forever
+			if (ownedAnchors.size() > 64)
+				ownedAnchors.clear();
 		}
+
+		if (BlockUtils.isAnchorCharged(pos))
+			ownedAnchors.remove(pos);
 	}
 }
