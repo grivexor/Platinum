@@ -14,8 +14,7 @@ make sure to use ZKM Trial for complete uncrackability
 - cyde (told me to use ox alpha)
 
 # Why
-Owner used to be on weedhack leaderboard, client is FULLY AI, somehow managed to paste from 2 clients i work at (Silk, Radium), lies about bypassing SS
-I don't think he wrote a singular line of java, might be worse than FDP 
+I thought to merge CC Obsidian Switch and Crystal switch module to Dqkris(Argon) and Client Crystal and Click Crystal The final product is here(https://github.com/grivexor/Platinum)
 
 # license
 pls share this around
