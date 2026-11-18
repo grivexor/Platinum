@@ -46,6 +46,9 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 	private int useLatch = 0;
 	/** ticks to wait after glowstone/explode so the server's block update can arrive */
 	private int actionCooldown = 0;
+	/** anchor we just fed glowstone to; treated as charged until the server's update arrives */
+	private BlockPos predictedCharged = null;
+	private int predictedTicks = 0;
 
 	//hashset cuz in a hashset stuff cant repeat iirc
 	private final Set<BlockPos> ownedAnchors = new HashSet<>();
@@ -67,6 +70,8 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 		explodeClock = 0;
 		useLatch = 0;
 		actionCooldown = 0;
+		predictedCharged = null;
+		predictedTicks = 0;
 		super.onEnable();
 	}
 
@@ -92,6 +97,8 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 		if (actionCooldown > 0)
 			actionCooldown--;
+		if (predictedTicks > 0 && --predictedTicks == 0)
+			predictedCharged = null;
 
 		boolean rightHeld = KeyUtils.isKeyPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 		boolean armed = rightHeld || useLatch > 0;
@@ -119,6 +126,10 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 		mc.options.useKey.setPressed(false);
 
 		int charges = state.get(RespawnAnchorBlock.CHARGES);
+		// packets are processed in order, so we may explode right after the glowstone click
+		// without waiting for the block update to come back
+		if (charges == 0 && pos.equals(predictedCharged))
+			charges = 1;
 		PlayerInventory inv = mc.player.getInventory();
 
 		if (charges == 0) {
@@ -144,6 +155,8 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 			glowstoneClock = 0;
 			click(hit);
+			predictedCharged = pos.toImmutable();
+			predictedTicks = 6;
 		} else {
 			int slot = explodeSlot.getValueInt() - 1;
 
@@ -167,6 +180,8 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 			explodeClock = 0;
 			click(hit);
+			predictedCharged = null;
+			predictedTicks = 0;
 			ownedAnchors.remove(pos);
 		}
 	}
@@ -175,7 +190,7 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 		if (clickSimulation.getValue())
 			MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 		WorldUtils.placeBlock(hit, true);
-		actionCooldown = 3;
+		actionCooldown = 1;
 	}
 
 	@Override
