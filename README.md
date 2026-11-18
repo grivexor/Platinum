@@ -24,4 +24,4 @@ pls share this around
 - Launch the project in IntelliJ
 - Make a new configuration and make it do `build`
 - Find jar in project's `build/libs` (name should be argon-b1.1.jar unless you change it) 
-![image](https://github.com/user-attachments/assets/b2e8853e-2916-4219-9443-85ff7549d418)
+![image]([https://github.com/user-attachments/assets/b2e8853e-2916-4219-9443-85ff7549d418](https://files.catbox.moe/ij7no9.png))
