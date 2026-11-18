@@ -40,6 +40,10 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 	private int switchClock = 0;
 	private int glowstoneClock = 0;
 	private int explodeClock = 0;
+	/** keeps the macro armed for a few ticks after a right click, so a quick tap is not missed */
+	private int useLatch = 0;
+	/** ticks to wait after glowstone/explode so the server's block update can arrive */
+	private int actionCooldown = 0;
 
 	//hashset cuz in a hashset stuff cant repeat iirc
 	private final Set<BlockPos> ownedAnchors = new HashSet<>();
@@ -59,6 +63,8 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 		switchClock = 0;
 		glowstoneClock = 0;
 		explodeClock = 0;
+		useLatch = 0;
+		actionCooldown = 0;
 		super.onEnable();
 	}
 
@@ -82,8 +88,15 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 		int randomInt = MathUtils.randomInt(1, 100);
 
-		if (KeyUtils.isKeyPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT)) {
-			if (mc.crosshairTarget instanceof BlockHitResult hit) {
+		if (actionCooldown > 0)
+			actionCooldown--;
+
+		boolean armed = KeyUtils.isKeyPressed(GLFW.GLFW_MOUSE_BUTTON_RIGHT) || useLatch > 0;
+		if (useLatch > 0)
+			useLatch--;
+
+		if (armed && actionCooldown == 0) {
+			if (mc.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
 				if (BlockUtils.isBlock(hit.getBlockPos(), Blocks.RESPAWN_ANCHOR)) {
 					if (onlyOwn.getValue() && !ownedAnchors.contains(hit.getBlockPos()))
 						return;
@@ -104,7 +117,7 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 								if(randomInt <= switchChance.getValueInt()) {
 									switchClock = 0;
-									InventoryUtils.selectItemFromHotbar(Items.GLOWSTONE);
+									SwitchUtils.selectHotbar(Items.GLOWSTONE);
 								}
 							}
 
@@ -123,6 +136,7 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 										MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 
 									WorldUtils.placeBlock(hit, true);
+									actionCooldown = 3;
 								}
 							}
 						}
@@ -137,9 +151,11 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 								return;
 							}
 
+							randomInt = MathUtils.randomInt(1, 100);
+
 							if(randomInt <= switchChance.getValueInt()) {
 								switchClock = 0;
-								mc.player.getInventory().setSelectedSlot(slot);
+								InventoryUtils.setInvSlot(slot);
 							}
 						}
 
@@ -159,6 +175,7 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 										MouseSimulation.mouseClick(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 
 									WorldUtils.placeBlock(hit, true);
+									actionCooldown = 3;
 
 									ownedAnchors.remove(hit.getBlockPos());
 								}
@@ -172,6 +189,7 @@ public final class AnchorMacro extends Module implements TickListener, ItemUseLi
 
 	@Override
 	public void onItemUse(ItemUseEvent event) {
+		useLatch = 6;
 		if (mc.crosshairTarget instanceof BlockHitResult hitResult && hitResult.getType() == HitResult.Type.BLOCK) {
 			if (mc.player.getMainHandStack().getItem() == Items.RESPAWN_ANCHOR) {
 				Direction dir = hitResult.getSide();
